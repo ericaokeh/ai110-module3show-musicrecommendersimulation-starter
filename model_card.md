@@ -8,68 +8,89 @@
 
 ## 2. Goal / Task
 
-VibeMatch suggests songs from a small catalog based on what a user tells us they like. Given a preferred genre, mood, and energy level, it scores every song and returns the top 5 that best match. It is not trying to predict what you will click — it is trying to find songs that feel right for the vibe you described.
+VibeMatch takes a user's stated preferences — genre, mood, energy level, acousticness, and valence — and returns the 5 best-matching songs from a 20-song catalog. It predicts "what song fits this vibe" not "what will you click." Every recommendation includes a point-by-point explanation so the user knows exactly why each song ranked where it did.
 
 ---
 
-## 3. Algorithm Summary
+## 3. How the Model Works
 
-Every song in the catalog gets a score. The score is built from five things:
+Every song gets a score from 0 to ~6 points. The score comes from two types of checks:
 
-- If the song's **genre** matches what the user wants, it gets points.
-- If the song's **mood** matches, it gets points.
-- For **energy**, **acousticness**, and **valence**, the system measures how close the song's value is to what the user asked for. A perfect match gets full points. A song that is far away gets fewer.
+**Categorical checks (match or no match):** If the song's genre matches what the user asked for, it earns points. Same for mood. No partial credit — it either matches or it doesn't.
 
-All five scores are added up. Songs with blocked IDs are removed before scoring even starts. The top 5 results are returned, with a cap of 2 songs per genre to keep the list varied.
+**Proximity checks (how close is close enough):** For energy, acousticness, and valence, the system measures the gap between what the user wants and what the song has. A perfect match earns the full weight. A song that is far away earns almost nothing. The formula is `1 - |user value - song value|`, multiplied by a weight that reflects how important that feature is.
+
+Additional bonuses apply if the song's release decade matches, if the song's mood tags overlap with the user's requested tags, and if popularity scoring is enabled.
+
+Blocked songs are removed before any scoring happens. The final list caps at 2 songs per genre and 1 song per artist to prevent the same artist dominating the results.
+
+Four scoring modes let the user shift what matters most: `balanced`, `genre-first`, `mood-first`, or `energy-focused`.
 
 ---
 
 ## 4. Data
 
-The catalog has 20 songs stored in a CSV file. Each song has a title, artist, genre, mood, and five numeric features: energy, tempo, valence, danceability, and acousticness. The 10 original songs came with the project. Ten more were added to cover genres and moods that were missing — including hip-hop, r&b, folk, classical, metal, reggae, soul, electronic, country, and psychedelic. Moods like sad, nostalgic, romantic, peaceful, angry, energetic, and dreamy were added to fill gaps. The dataset is still very small and mostly reflects one person's idea of what these genres sound like.
+- **20 songs** total in `data/songs.csv`
+- **10 original songs** from the starter project (pop, lofi, rock, ambient, jazz, synthwave, indie pop)
+- **10 added songs** to fill missing genres: hip-hop, r&b, folk, classical, metal, reggae, soul, electronic, country, psychedelic
+- Each song has: genre, mood, energy (0–1), tempo BPM, valence (0–1), danceability (0–1), acousticness (0–1), popularity (0–100), release decade, and mood tags
+- **Limitation:** most genres have only 1 song. The dataset skews toward 2020s releases and reflects one person's interpretation of how these genres sound.
 
 ---
 
 ## 5. Strengths
 
-The system works best when the user's preferences are clear and specific. A lofi/chill user or a rock/intense user gets results that feel right immediately — the top song matches on every dimension. The scoring is fully transparent: every point is printed with a reason, so you always know exactly why a song ranked where it did. It also handles blocking correctly — songs the user has rejected never appear, even if they would have scored highly.
+- Works well for users with clear, specific preferences — a lofi/chill or rock/intense user gets results that feel right on the first try
+- Fully transparent — every point is printed with a reason, so there are no mystery recommendations
+- Four scoring modes let users shift priorities without changing the underlying data
+- Artist and genre diversity caps prevent one artist from dominating the top 5
 
 ---
 
 ## 6. Limitations and Bias
 
-The most significant weakness is **genre scarcity bias**. Because most genres appear only once in the 20-song catalog, any user whose favorite genre has a single match will always see that song ranked first — regardless of whether its energy, mood, or acousticness actually fit. A classical user asking for intense, high-energy music still gets Glass Cathedrals (peaceful, energy=0.18) near the top simply because it is the only classical song. This is not a flaw in the scoring math — it is a flaw in the data. A second issue is **mood cliff matching**: moods like "chill" and "relaxed" are near-identical in feel but score the same as "chill" vs "angry" — either a full point or zero, with no partial credit for similar vibes. Finally, high-energy users have more songs clustered near their target (0.75–0.97) than low-energy users (0.18–0.42), giving high-energy profiles a structural advantage in numeric scoring.
+**Genre scarcity bias** is the biggest problem. Most genres appear once in the catalog, so any user whose favorite genre has one song will always see that song ranked first — even if its energy, mood, and acousticness are completely wrong. A classical user asking for intense, high-energy music gets Glass Cathedrals (peaceful, energy=0.18) near the top simply because it is the only classical song. This is a data problem, not a math problem.
+
+**Mood cliff matching** means "chill" and "relaxed" score identically to "chill" and "angry" — it is binary. A song that is close in feel but uses a different mood label gets zero points for mood.
+
+**Energy distribution asymmetry** gives high-energy users a structural advantage. High-energy songs cluster between 0.75–0.97, so there are more close matches available. Low-energy songs cluster between 0.18–0.42, leaving fewer options for users who want calm music.
 
 ---
 
 ## 7. Evaluation
 
-Six user profiles were tested: High-Energy Pop, Chill Lofi, Deep Intense Rock, and three adversarial edge cases — a user who wanted high energy but a sad mood, a user who asked for classical but intense music, and a user with perfectly average preferences across every feature. For the clean profiles, results matched intuition well. The edge cases were more revealing. Gym Hero kept appearing near the top for the Happy Pop profile even though the user wanted a happy mood — it is a pop song with matching energy, so the math pushed it up even though the vibe is wrong. It is like asking for a birthday party song and getting handed a pre-workout track. The classical-but-intense profile showed that strong energy weighting can push a rock song above a classical one, which is either honest or confusing depending on how you look at it. Weight experiments confirmed that no single configuration works perfectly for all profiles.
+**Six profiles tested:** High-Energy Pop, Chill Lofi, Deep Intense Rock, plus three adversarial cases: high energy + sad mood, classical + intense, and everything at 0.5.
+
+**What worked:** Clean profiles matched intuition immediately. Library Rain ranked #1 for chill lofi on every weight configuration tested. Storm Runner always topped deep intense rock.
+
+**What surprised me:** Gym Hero kept appearing in the Happy Pop top 5 even though the user wanted a happy mood. It is tagged as intense. But it is a pop song with energy=0.93, so genre + energy pushed it up despite the mood mismatch. It is technically correct by the math but feels wrong as a recommendation — like asking for a birthday party playlist and getting a pre-workout track.
+
+**Weight experiments:** Genre at 2.0 made every result predictable and boring. Genre at 0.9 with energy at 2.0 produced the most interesting and honest results across all six profiles. No single weight configuration worked perfectly for every profile.
 
 ---
 
 ## 8. Intended Use and Non-Intended Use
 
-**Intended use:** Classroom exploration of how content-based recommender systems work. Good for understanding weighted scoring, proximity math, and the tradeoffs between different feature weights.
+**Intended for:** Learning how content-based recommender systems work. This project is a classroom simulation — good for understanding weighted scoring, proximity math, filter bubbles, and the tradeoff between genre matching and numeric feature matching.
 
-**Not intended for:** Real users, real products, or any situation where the recommendations would affect someone's actual listening experience. The catalog is too small, the features are manually assigned, and there is no feedback loop to improve over time.
+**Not intended for:** Real users or real products. The catalog is too small, the feature values are manually estimated, and there is no feedback loop. Using this to make actual music recommendations for real people would produce results that feel random to anyone outside the narrow profiles it was tuned for.
 
 ---
 
 ## 9. Ideas for Improvement
 
-- **Bigger and more balanced catalog** — at least 5 songs per genre so the system has real choices to make instead of defaulting to the only match.
-- **Partial mood scoring** — instead of binary match/no-match, group moods by similarity (e.g. chill/relaxed/peaceful as a cluster) so close moods get partial credit.
-- **User feedback loop** — track skips and replays to adjust weights over time, so the system learns whether a particular user cares more about genre or energy.
+- **Expand the catalog** — at least 5 songs per genre so the system has real choices instead of defaulting to the only match
+- **Partial mood scoring** — group similar moods into clusters (chill/relaxed/peaceful, intense/angry/energetic) and award partial points for near-matches
+- **Feedback loop** — track skips and saves to nudge weights over time, turning the static formula into something that actually learns the user's taste
 
 ---
 
 ## 10. Personal Reflection
 
-The biggest learning moment was realizing that the weights are not just math — they are decisions. Every time I changed a number, I was making a statement about what matters more to a listener. When I had genre at 2.0, the system felt confident but boring. When I dropped it to 0.9, the results got more interesting but occasionally strange. There is no objectively correct weight — just tradeoffs, and that is something I did not expect going in.
+**Biggest learning moment:** The weights are not just math — they are decisions. Every time I changed a number, I was deciding what matters more to a listener. When genre was at 2.0, the system felt confident but boring. When I dropped it to 0.9, the results got more interesting but occasionally contradicted the user's stated preference. There is no correct answer — just tradeoffs.
 
-Using AI tools helped a lot for moving fast. I could describe what I wanted in plain language and get working code back quickly, which meant I spent more time thinking about the results than fighting syntax. But I had to double-check things constantly — especially around edge cases. The AI gave me code that ran without errors but still produced recommendations that felt wrong when I actually read them. Running the output and asking "does this make sense?" was something the AI could not do for me.
+**How AI tools helped, and when I had to double-check:** AI tools made the coding fast. I could describe what I wanted in plain language and get working code back immediately, which meant I spent more time reading the output than writing the logic. But the AI never caught that Gym Hero showing up in a happy playlist was wrong. It produced code that ran without errors and still gave bad recommendations. Checking whether results actually made sense was something I had to do myself.
 
-The most surprising thing was how much the output felt like real recommendations even though the logic is just five numbers being added up. When Library Rain came back as the top chill lofi song, it genuinely felt right — not because the algorithm is smart, but because the features captured something true about how that song sounds. That gap between simple math and a result that feels meaningful is what makes recommender systems interesting.
+**What surprised me about simple algorithms feeling like recommendations:** Library Rain scoring #1 for chill lofi genuinely felt right. Not because the algorithm is smart — it is just five numbers being added up — but because the features captured something real about how that song sounds. That gap between simple math and a result that feels meaningful was the most interesting discovery in the whole project.
 
-If I extended this project, I would add a feedback loop first — even something simple like flagging songs as skipped or replayed and using that to nudge the weights over time. That one change would turn a static formula into something that actually learns, which is the core difference between this simulation and what Spotify is doing at scale.
+**What I would try next:** Add a feedback loop. Even something simple — flag a song as skipped or replayed, then nudge the relevant feature weights up or down. That one change is the core difference between this simulation and what Spotify is actually doing.
