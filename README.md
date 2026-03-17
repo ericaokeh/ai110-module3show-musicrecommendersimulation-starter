@@ -1,6 +1,8 @@
-# 🎵 Music Recommender Simulation
 
 ## Project Summary
+<img width="1161" height="515" alt="Screenshot 2026-03-17 at 1 35 48 PM" src="https://github.com/user-attachments/assets/3c765fb9-6bbb-4fbe-95a8-e3edb8b43db7" />
+<img width="1272" height="460" alt="Screenshot 2026-03-17 at 2 19 44 PM" src="https://github.com/user-attachments/assets/430786c5-1c37-4333-8d78-da993cfa59b2" />
+
 
 This project builds a content-based music recommender from scratch. It scores every song in a 20-song catalog against a user's stated preferences (genre, mood, energy, acousticness, and valence) and returns the top 5 matches with an explanation for every point awarded. Real-world recommenders like Spotify layer in collaborative filtering and behavioral signals on top of this kind of content scoring. This version focuses on making the math visible and explainable.
 
@@ -119,6 +121,7 @@ pytest
 - **No lyrics or language understanding:** a song about heartbreak with high energy scores the same as a pump-up anthem if their audio features match
 
 ---
+
 
 ## Reflection
 
